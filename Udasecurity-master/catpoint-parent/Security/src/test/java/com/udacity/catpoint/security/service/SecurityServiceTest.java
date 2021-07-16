@@ -8,6 +8,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.*;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -18,6 +19,8 @@ import java.util.Set;
 import java.util.UUID;
 
 import static java.awt.image.BufferedImage.TYPE_INT_ARGB;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.*;
 
 
@@ -75,6 +78,8 @@ public class SecurityServiceTest {
         verify(securityRepository).setAlarmStatus(AlarmStatus.ALARM);
     }
 
+
+
     //test 3
     @Test
     public void ifAlarmArmedAndAlarmStatusPendingAndSensorNotActivated_SetToAlarmStatusNoAlarm(){
@@ -87,7 +92,7 @@ public class SecurityServiceTest {
 
     //test 4
     @ParameterizedTest
-    @ValueSource(booleans = {true})
+    @ValueSource(booleans = {true,false})
     void ifAlarmIsActive_changeSensorShouldNotAffectAlarmState(boolean status) {
         when(securityRepository.getAlarmStatus()).thenReturn(AlarmStatus.ALARM);
         securityService.changeSensorActivationStatus(sensor, status);
@@ -110,6 +115,17 @@ public class SecurityServiceTest {
     }
 
 
+
+
+    @ParameterizedTest
+    @EnumSource(value = AlarmStatus.class, names = {"NO_ALARM", "PENDING_ALARM", "ALARM"})
+    void ifSensorDeactivatedWhileInactive_noChangesToAlarmState(AlarmStatus status) {
+        when(securityRepository.getAlarmStatus()).thenReturn(status);
+        sensor.setActive(false);
+        securityService.changeSensorActivationStatus(sensor, false);
+
+        verify(securityRepository, never()).setAlarmStatus(any(AlarmStatus.class));
+    }
     // test 6
     @Test
     void checkInactiveOrDeactivatedSensor_noChangeInAlarmState(){
@@ -153,7 +169,18 @@ public class SecurityServiceTest {
     void systemArmed_resetAllSensorsToInactive(){
         securityService.setArmingStatus(ArmingStatus.ARMED_HOME);
         securityService.getSensors().forEach(sensor1 -> {
-            assert Boolean.FALSE.equals(sensor1.getActive());
+                    assert Boolean.FALSE.equals(sensor1.getActive()); });
+    }
+      @ParameterizedTest
+    @EnumSource(value = ArmingStatus.class, names = {"ARMED_HOME", "ARMED_AWAY"})
+    void ifSystemArmedAndChangeSensorsToInactive(ArmingStatus status) {
+        Set<Sensor> sensors = getAllSensors(3, true);
+        when(securityRepository.getAlarmStatus()).thenReturn(AlarmStatus.PENDING_ALARM);
+        when(securityRepository.getSensors()).thenReturn(sensors);
+        securityService.setArmingStatus(status);
+
+        securityService.getSensors().forEach(sensor -> {
+            assertFalse(sensor.getActive());
         });
     }
 
@@ -188,4 +215,6 @@ public class SecurityServiceTest {
 
         verify(securityRepository, times(1)).setAlarmStatus(AlarmStatus.PENDING_ALARM);
     }
+
+
 }
